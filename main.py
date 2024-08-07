@@ -11,6 +11,7 @@ from google.cloud import vision
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+
 class ScreenAnalyzer:
     def __init__(self, credentials_path: str = 'credentials.json'):
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
@@ -86,6 +87,7 @@ class ScreenAnalyzer:
             debug_image.save(debug_filename)
             logger.info(f"Saved debug screenshot: {debug_filename}")
 
+
 class WindowManager:
     @staticmethod
     def find_window(title: str):
@@ -119,6 +121,7 @@ class WindowManager:
         new_y = (screen_height - window_height) // 2
         WindowManager.move_window(window, new_x, new_y)
         logger.info("Centered window on screen")
+
 
 # Usage example
 if __name__ == "__main__":
