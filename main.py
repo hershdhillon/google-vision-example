@@ -2,6 +2,7 @@ import io
 import os
 import logging
 from typing import Tuple, List, Optional
+from datetime import datetime
 
 import pyautogui
 from PIL import Image, ImageDraw
@@ -11,16 +12,26 @@ from google.cloud import vision
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Create screenshots directory if it doesn't exist
+SCREENSHOT_DIR = "screenshots"
+os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
 
 class ScreenAnalyzer:
     def __init__(self, credentials_path: str = 'credentials.json'):
         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
         self.vision_client = vision.ImageAnnotatorClient()
 
-    def capture_screenshot(self, filename: str = 'screenshot.png') -> str:
+    def capture_screenshot(self, filename: str = None) -> str:
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screenshot_{timestamp}.png"
+
+        filepath = os.path.join(SCREENSHOT_DIR, filename)
         screenshot = pyautogui.screenshot()
-        screenshot.save(filename)
-        return filename
+        screenshot.save(filepath)
+        logger.info(f"Screenshot saved: {filepath}")
+        return filepath
 
     def detect_text(self, image_path: str) -> List[vision.TextAnnotation]:
         with io.open(image_path, 'rb') as image_file:
@@ -29,8 +40,12 @@ class ScreenAnalyzer:
         response = self.vision_client.text_detection(image=image)
         return response.text_annotations
 
-    def find_element(self, text_to_find: str, screenshot_path: str = 'screenshot.png') -> Optional[Tuple[int, int]]:
-        self.capture_screenshot(screenshot_path)
+    def find_element(self, text_to_find: str, screenshot_path: str = None) -> Optional[Tuple[int, int]]:
+        if screenshot_path is None:
+            screenshot_path = self.capture_screenshot()
+        elif not os.path.isabs(screenshot_path):
+            screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_path)
+
         texts = self.detect_text(screenshot_path)
 
         if not texts:
@@ -48,7 +63,7 @@ class ScreenAnalyzer:
             logger.warning(f"Text '{text_to_find}' not found in the image.")
             return None
 
-    def click_element(self, text_to_find: str, screenshot_path: str = 'screenshot.png') -> bool:
+    def click_element(self, text_to_find: str, screenshot_path: str = None) -> bool:
         element_position = self.find_element(text_to_find, screenshot_path)
         if element_position:
             pyautogui.click(element_position[0], element_position[1])
@@ -56,14 +71,14 @@ class ScreenAnalyzer:
             return True
         return False
 
-    def find_input_field(self, label_text: str, screenshot_path: str = 'screenshot.png', offset_y: int = 30) -> \
+    def find_input_field(self, label_text: str, screenshot_path: str = None, offset_y: int = 30) -> \
             Optional[Tuple[int, int]]:
         element_position = self.find_element(label_text, screenshot_path)
         if element_position:
             return (element_position[0], element_position[1] + offset_y)
         return None
 
-    def input_text(self, label_text: str, text: str, screenshot_path: str = 'screenshot.png',
+    def input_text(self, label_text: str, text: str, screenshot_path: str = None,
                    offset_y: int = 30) -> bool:
         input_position = self.find_input_field(label_text, screenshot_path, offset_y)
         if input_position:
@@ -74,7 +89,12 @@ class ScreenAnalyzer:
         logger.warning(f"Failed to find input field with label '{label_text}'")
         return False
 
-    def debug_screenshot(self, text_to_find: str, screenshot_path: str = 'screenshot.png'):
+    def debug_screenshot(self, text_to_find: str, screenshot_path: str = None):
+        if screenshot_path is None:
+            screenshot_path = self.capture_screenshot()
+        elif not os.path.isabs(screenshot_path):
+            screenshot_path = os.path.join(SCREENSHOT_DIR, screenshot_path)
+
         element_position = self.find_element(text_to_find, screenshot_path)
         if element_position:
             debug_image = Image.open(screenshot_path)
@@ -83,10 +103,11 @@ class ScreenAnalyzer:
                 (element_position[0] - 5, element_position[1] - 5),
                 (element_position[0] + 5, element_position[1] + 5)
             ], outline="red", width=2)
-            debug_filename = f'debug_{text_to_find.lower()}_screenshot.png'
-            debug_image.save(debug_filename)
-            logger.info(f"Saved debug screenshot: {debug_filename}")
-
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_filename = f'debug_{text_to_find.lower()}_{timestamp}.png'
+            debug_filepath = os.path.join(SCREENSHOT_DIR, debug_filename)
+            debug_image.save(debug_filepath)
+            logger.info(f"Saved debug screenshot: {debug_filepath}")
 
 class WindowManager:
     @staticmethod
